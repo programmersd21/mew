@@ -5,6 +5,8 @@ use std::path::Path;
 
 use ignore::WalkBuilder;
 
+use crate::git;
+
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct ProjectTelemetry {
     pub total_lines: usize,
@@ -67,89 +69,92 @@ fn extension_to_lang(ext: &str) -> &'static str {
 const MAX_COUNT_BYTES: u64 = 1024 * 1024;
 
 // walk workspace respecting .gitignore using ignore crate, counting lines of code
-pub fn count_lines_of_code(root: &Path) -> (usize, Option<(String, f32)>) {
-    let mut lang_counts: HashMap<&'static str, usize> = HashMap::new();
-    let mut total_lines = 0;
+pub fn count_lines_of_code(force_count_lines: bool, root: &Path) -> (usize, Option<(String, f32)>) {
+    let git_state = git::detect_git_state(root).unwrap_or_default();
 
-    let walker = WalkBuilder::new(root)
-        .standard_filters(true)
-        .hidden(true)
-        .build();
+    if git_state.is_repo || force_count_lines {
+        let mut lang_counts: HashMap<&'static str, usize> = HashMap::new();
+        let mut total_lines = 0;
 
-    for entry in walker.filter_map(Result::ok) {
-        if !entry.file_type().is_some_and(|ft| ft.is_file()) {
-            continue;
-        }
+        let walker = WalkBuilder::new(root)
+            .standard_filters(true)
+            .hidden(true)
+            .build();
 
-        let path = entry.path();
-        let ext = path
-            .extension()
-            .and_then(|s| s.to_str())
-            .unwrap_or("")
-            .to_lowercase();
+        for entry in walker.filter_map(Result::ok) {
+            if !entry.file_type().is_some_and(|ft| ft.is_file()) {
+                continue;
+            }
 
-        // unclassified extensions (binaries, media, archives) are skipped
-        // without opening: counting their bytes as code would be dishonest,
-        // and reading them is what made big directories slow.
-        let lang = extension_to_lang(&ext);
-        if lang == "other" {
-            continue;
-        }
+            let path = entry.path();
+            let ext = path
+                .extension()
+                .and_then(|s| s.to_str())
+                .unwrap_or("")
+                .to_lowercase();
 
-        // cheap size gate before paying for a full read
-        if entry
-            .metadata()
-            .map(|m| m.len() > MAX_COUNT_BYTES)
-            .unwrap_or(true)
-        {
-            continue;
-        }
+            // unclassified extensions (binaries, media, archives) are skipped
+            // without opening: counting their bytes as code would be dishonest,
+            // and reading them is what made big directories slow.
+            let lang = extension_to_lang(&ext);
+            if lang == "other" {
+                continue;
+            }
 
-        let lang = extension_to_lang(&ext);
+            // cheap size gate before paying for a full read
+            if entry
+                .metadata()
+                .map(|m| m.len() > MAX_COUNT_BYTES)
+                .unwrap_or(true)
+            {
+                continue;
+            }
 
-        if let Ok(file) = fs::File::open(path) {
-            let reader = BufReader::new(file);
-            let lines = reader.lines().count();
-            if lines > 0 {
-                total_lines += lines;
-                *lang_counts.entry(lang).or_insert(0) += lines;
+            if let Ok(file) = fs::File::open(path) {
+                let reader = BufReader::new(file);
+                let lines = reader.lines().count();
+                if lines > 0 {
+                    total_lines += lines;
+                    *lang_counts.entry(lang).or_insert(0) += lines;
+                }
             }
         }
-    }
 
-    if total_lines == 0 {
-        return (0, None);
-    }
-
-    // top primary code language (ignoring config and markdown if code exists)
-    let mut top_code_lang: Option<(&'static str, usize)> = None;
-
-    for (&lang, &count) in &lang_counts {
-        if lang != "markdown"
-            && lang != "config"
-            && lang != "other"
-            && top_code_lang.is_none_or(|(_, max)| count > max)
-        {
-            top_code_lang = Some((lang, count));
+        if total_lines == 0 {
+            return (0, None);
         }
-    }
 
-    let top_lang = match top_code_lang {
-        Some((lang, count)) => {
-            let pct = (count as f32 / total_lines as f32) * 100.0;
-            Some((lang.to_string(), pct))
+        // top primary code language (ignoring config and markdown if code exists)
+        let mut top_code_lang: Option<(&'static str, usize)> = None;
+
+        for (&lang, &count) in &lang_counts {
+            if lang != "markdown"
+                && lang != "config"
+                && lang != "other"
+                && top_code_lang.is_none_or(|(_, max)| count > max)
+            {
+                top_code_lang = Some((lang, count));
+            }
         }
-        _ => {
-            // fall back to overall top language
-            let overall = lang_counts.iter().max_by_key(|&(_, &count)| count);
-            overall.map(|(&lang, &count)| {
+
+        let top_lang = match top_code_lang {
+            Some((lang, count)) => {
                 let pct = (count as f32 / total_lines as f32) * 100.0;
-                (lang.to_string(), pct)
-            })
-        }
-    };
-
-    (total_lines, top_lang)
+                Some((lang.to_string(), pct))
+            }
+            _ => {
+                // fall back to overall top language
+                let overall = lang_counts.iter().max_by_key(|&(_, &count)| count);
+                overall.map(|(&lang, &count)| {
+                    let pct = (count as f32 / total_lines as f32) * 100.0;
+                    (lang.to_string(), pct)
+                })
+            }
+        };
+        (total_lines, top_lang)
+    } else {
+        (0, None)
+    }
 }
 
 // detect real coverage report if present in standard locations
@@ -319,8 +324,8 @@ pub fn detect_project_language(root: &Path) -> Option<String> {
     None
 }
 
-pub fn collect_project_telemetry(root: &Path) -> ProjectTelemetry {
-    let (total_lines, top_language) = count_lines_of_code(root);
+pub fn collect_project_telemetry(force_count_lines: bool, root: &Path) -> ProjectTelemetry {
+    let (total_lines, top_language) = count_lines_of_code(force_count_lines, root);
     let coverage_info = detect_coverage(root);
 
     ProjectTelemetry {

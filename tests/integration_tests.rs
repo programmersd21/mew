@@ -315,7 +315,7 @@ fn test_all_mascot_reactions_render() {
         }
 
         // full mode drives the same face from the same state
-        let full = render_full(git, &sys, &telem, &palette);
+        let full = render_full(true, git, &sys, &telem, &palette);
         assert!(
             full.contains(word),
             "full mode missing chip word '{}'",

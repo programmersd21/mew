@@ -15,6 +15,10 @@ struct Cli {
     #[arg(long)]
     full: bool,
 
+    /// counts lines if in non-git directory
+    #[arg(long, short)]
+    force_count_lines: bool,
+
     #[command(subcommand)]
     command: Option<Commands>,
 }
@@ -45,8 +49,14 @@ fn main() -> Result<()> {
 
     if cli.full {
         let sys_telem = system::collect_system_telemetry();
-        let proj_telem = telemetry::collect_project_telemetry(&cwd);
-        let output = render::render_full(&git_state, &sys_telem, &proj_telem, &palette);
+        let proj_telem = telemetry::collect_project_telemetry(cli.force_count_lines, &cwd);
+        let output = render::render_full(
+            cli.force_count_lines,
+            &git_state,
+            &sys_telem,
+            &proj_telem,
+            &palette,
+        );
         print!("{}", output);
     } else {
         let top_lang = telemetry::detect_project_language(&cwd);
