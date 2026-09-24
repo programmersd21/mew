@@ -1,6 +1,6 @@
 [package]
 name = "mew-cli"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2024"
 description = "fast, zero-daemon terminal companion and git workspace dashboard with reactive ascii mascot"
 license = "MIT"
