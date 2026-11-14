@@ -2,8 +2,8 @@
 
 set -euo pipefail
 
-INPUT="${1:-screenshots/demo.png}"
-OUTPUT="${2:-screenshots/demo.png}"
+INPUT="${1:-assets/original.png}"
+OUTPUT="${2:-assets/demo.png}"
 
 TEMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TEMP_DIR"' EXIT
