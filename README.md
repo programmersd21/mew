@@ -51,33 +51,41 @@ curl -sSf https://raw.githubusercontent.com/programmersd21/mew/main/scripts/inst
 mew
 ```
 
-that's it. the installer provisions a starter `theme.toml` for you;
-macos and windows work the same way, see below.
+that's it. the installer automatically provisions a starter `theme.toml` for you.
 
-<details>
-<summary>other ways to install</summary>
+macos and windows are supported too. see the installation options below.
 
+### other installation methods
+
+**cargo**
 ```sh
-# cargo
 cargo install mew-cli
-
-# arch (aur)
-paru -S mew-bin
-
-# nix / home-manager: add github:programmersd21/mew as a flake input, then
-programs.mew.enable = true;
-
-# from source (rust 1.95+)
-git clone https://github.com/programmersd21/mew && cd mew && cargo install --path .
 ```
 
-windows (powershell):
+**arch linux (aur)**
+```sh
+paru -S mew-bin
+```
 
+**nix / home-manager**
+
+add `github:programmersd21/mew` as a flake input, then enable:
+
+```nix
+programs.mew.enable = true;
+```
+
+**from source (rust 1.95+)**
+```sh
+git clone https://github.com/programmersd21/mew
+cd mew
+cargo install --path .
+```
+
+**windows (powershell)**
 ```powershell
 irm https://raw.githubusercontent.com/programmersd21/mew/main/scripts/install.ps1 | iex
 ```
-
-</details>
 
 ## usage
 
