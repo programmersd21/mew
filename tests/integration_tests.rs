@@ -208,6 +208,120 @@ fn test_highlight_toml_plain_passthrough_and_ansi_strip_roundtrip() {
 }
 
 #[test]
+fn test_style_clap_output_plain_passthrough_and_ansi_strip() {
+    let cfg = mew::theme::ThemeConfig::default();
+    let src = "error: unrecognized subcommand 'hoook'\n\nUsage: mew [COMMAND]\n";
+    let plain = mew::theme::Palette::from_config(&cfg, mew::theme::ColorMode::Plain);
+    let passthrough = mew::clap_ui::style_clap_output(src, mew::clap_ui::ClapScreen::Error, &plain);
+    assert!(!passthrough.contains('\x1b'));
+    assert_eq!(
+        passthrough,
+        "error: unrecognized subcommand 'hoook'\n\nusage: mew [COMMAND]\n"
+    );
+
+    let palette = mew::theme::Palette::from_config(&cfg, mew::theme::ColorMode::Truecolor);
+    let styled = mew::clap_ui::style_clap_output(src, mew::clap_ui::ClapScreen::Error, &palette);
+    assert!(styled.contains("\x1b["));
+    // the guidance is unaltered once the escapes come off
+    let mut stripped = String::new();
+    let mut in_escape = false;
+    for c in styled.chars() {
+        if c == '\x1b' {
+            in_escape = true;
+            continue;
+        }
+        if in_escape {
+            if c == 'm' {
+                in_escape = false;
+            }
+            continue;
+        }
+        stripped.push(c);
+    }
+    assert_eq!(stripped, passthrough);
+}
+
+#[test]
+fn test_unknown_subcommand_error_is_themed_and_plain_when_piped() {
+    let bin = env!("CARGO_BIN_EXE_mew");
+    let out = std::process::Command::new(bin)
+        .arg("hoook")
+        .output()
+        .unwrap();
+    assert_eq!(out.status.code(), Some(2));
+    assert!(out.stdout.is_empty(), "errors belong on stderr");
+    let stderr = String::from_utf8(out.stderr).unwrap();
+    assert!(stderr.contains("unrecognized subcommand"));
+    // the corrective tip survives styling
+    assert!(stderr.contains("hook"));
+    assert!(stderr.contains("usage:"));
+    assert!(!stderr.contains('\x1b'), "piped errors must carry no ansi");
+}
+
+#[test]
+fn test_missing_required_arg_error_is_themed_and_plain_when_piped() {
+    let bin = env!("CARGO_BIN_EXE_mew");
+    let out = std::process::Command::new(bin)
+        .arg("hook")
+        .output()
+        .unwrap();
+    assert_eq!(out.status.code(), Some(2));
+    let stderr = String::from_utf8(out.stderr).unwrap();
+    assert!(stderr.contains("<SHELL>"));
+    assert!(stderr.contains("usage:"));
+    assert!(!stderr.contains('\x1b'));
+}
+
+#[test]
+fn test_unexpected_flag_error_is_themed_and_plain_when_piped() {
+    let bin = env!("CARGO_BIN_EXE_mew");
+    let out = std::process::Command::new(bin).arg("-Z").output().unwrap();
+    assert_eq!(out.status.code(), Some(2));
+    let stderr = String::from_utf8(out.stderr).unwrap();
+    assert!(stderr.contains("error:"));
+    assert!(!stderr.contains('\x1b'));
+}
+
+#[test]
+fn test_help_output_is_branded_and_lowercase_when_piped() {
+    let bin = env!("CARGO_BIN_EXE_mew");
+    let out = std::process::Command::new(bin)
+        .arg("--help")
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let stdout = String::from_utf8(out.stdout).unwrap();
+    assert!(stdout.starts_with("mew · "), "about line is branded");
+    assert!(stdout.contains("usage:"));
+    assert!(stdout.contains("commands:"));
+    assert!(stdout.contains("theme"));
+    assert!(stdout.contains("hook"));
+    assert!(!stdout.contains('\x1b'));
+    // subcommand help gets the same treatment
+    let out = std::process::Command::new(bin)
+        .args(["hook", "--help"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let stdout = String::from_utf8(out.stdout).unwrap();
+    assert!(stdout.contains("<SHELL>"));
+    assert!(!stdout.contains('\x1b'));
+}
+
+#[test]
+fn test_version_output_carries_version_string() {
+    let bin = env!("CARGO_BIN_EXE_mew");
+    let out = std::process::Command::new(bin)
+        .arg("--version")
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let stdout = String::from_utf8(out.stdout).unwrap();
+    assert!(stdout.contains(env!("CARGO_PKG_VERSION")));
+    assert!(!stdout.contains('\x1b'));
+}
+
+#[test]
 fn test_theme_subcommand_pipes_raw_toml_and_accepts_raw_flag() {
     let bin = env!("CARGO_BIN_EXE_mew");
     for args in [vec!["theme"], vec!["theme", "--raw"]] {

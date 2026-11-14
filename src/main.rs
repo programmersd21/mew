@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use mew::{git, hook, render, telemetry, theme};
+use mew::{clap_ui, git, hook, render, telemetry, theme};
 
 #[derive(Parser, Debug)]
 #[command(
@@ -32,7 +32,23 @@ enum Commands {
 }
 
 fn main() -> Result<()> {
-    let cli = Cli::parse();
+    let cli = match Cli::try_parse() {
+        Ok(cli) => cli,
+        Err(err) => {
+            // clap's own screens (help, version, errors) render through the
+            // same palette as the card — plain output when piped / NO_COLOR
+            let color_mode = theme::detect_color_mode();
+            let palette = theme::Palette::from_config(&theme::load_theme(), color_mode);
+            let screen = clap_ui::classify(&err.kind());
+            let out = clap_ui::style_clap_output(&err.to_string(), screen, &palette);
+            if err.use_stderr() {
+                eprint!("{}", out);
+            } else {
+                print!("{}", out);
+            }
+            std::process::exit(err.exit_code());
+        }
+    };
 
     match cli.command {
         Some(Commands::Theme { raw }) => {

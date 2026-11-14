@@ -1,3 +1,4 @@
+pub mod clap_ui;
 pub mod git;
 pub mod hook;
 pub mod render;
