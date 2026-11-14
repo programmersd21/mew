@@ -4,6 +4,8 @@ set -euo pipefail
 REPO_URL="https://github.com/programmersd21/mew.git"
 INSTALL_DIR="${MEW_INSTALL_DIR:-$HOME/.local/share/mew}"
 BIN_DIR="${MEW_BIN_DIR:-$HOME/.local/bin}"
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/mew"
+THEME_FILE="$CONFIG_DIR/theme.toml"
 
 log() {
     printf 'mew: %s\n' "$1"
@@ -31,6 +33,17 @@ else
         1)
             log "installing mew-cli from crates.io..."
             cargo install mew-cli
+            # provision the theme too: a crates.io install has no installer
+            # hook, so this is the only chance the user gets one
+            MEW_BIN="${CARGO_HOME:-$HOME/.cargo}/bin/mew"
+            if [ ! -x "$MEW_BIN" ]; then
+                MEW_BIN="$(command -v mew || true)"
+            fi
+            if [ ! -f "$THEME_FILE" ] && [ -n "$MEW_BIN" ]; then
+                log "provisioning default theme..."
+                mkdir -p "$CONFIG_DIR"
+                "$MEW_BIN" theme > "$THEME_FILE" || log "note: could not write default theme to $THEME_FILE"
+            fi
             exit 0
             ;;
         2)
@@ -85,51 +98,12 @@ mkdir -p "$BIN_DIR"
 log "installing binary..."
 install -m 755 target/release/mew "$BIN_DIR/mew"
 
-CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/mew"
-THEME_FILE="$CONFIG_DIR/theme.toml"
-
 if [ ! -f "$THEME_FILE" ]; then
     log "provisioning default theme..."
     mkdir -p "$CONFIG_DIR"
-
-    cat <<'EOF' > "$THEME_FILE"
-[colors]
-border       = "#45475a"
-primary      = "#cdd6f4"
-muted        = "#6c7086"
-mascot       = "#f2cdcd"
-task_active  = "#b4befe"
-gauge_fill   = "#89b4fa"
-gauge_empty  = "#313244"
-status_clean = "#a6e3a1"
-status_dirty = "#f9e2af"
-status_error = "#f38ba8"
-
-dot_workspace = "#89dceb"
-dot_git       = "#fab387"
-dot_env       = "#cba6f7"
-dot_task      = "#a6e3a1"
-dot_mood      = "#f5c2e7"
-
-title_mew     = "#cba6f7"
-title_sys     = "#a6e3a1"
-title_context = "#fab387"
-title_telem   = "#f5c2e7"
-title_cmd     = "#94e2d5"
-
-dots = [
-    "#f38ba8",
-    "#fab387",
-    "#f9e2af",
-    "#a6e3a1",
-    "#94e2d5",
-    "#89b4fa",
-    "#cba6f7",
-    "#f5c2e7"
-]
-EOF
+    # the annotated template is the single source of truth — never a stale copy
+    "$MEW_SOURCE_DIR/target/release/mew" theme > "$THEME_FILE"
 fi
-
 HYPR_CONF="${XDG_CONFIG_HOME:-$HOME/.config}/hypr/hyprland.conf"
 
 if [ -f "$HYPR_CONF" ] && ! grep -q 'bind = \$mainMod, M, exec' "$HYPR_CONF" 2>/dev/null; then

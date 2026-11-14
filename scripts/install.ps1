@@ -32,30 +32,9 @@ if ($PathParts -notcontains $InstallDir) {
 if (-not (Test-Path $ThemeFile)) {
     Write-Host "mew: provisioning default theme at $ThemeFile..."
     New-Item -ItemType Directory -Force -Path $ThemeDir | Out-Null
-    @'
-[colors]
-border       = "#45475a"
-primary      = "#cdd6f4"
-muted        = "#6c7086"
-mascot       = "#f2cdcd"
-task_active  = "#b4befe"
-gauge_fill   = "#89b4fa"
-gauge_empty  = "#313244"
-status_clean = "#a6e3a1"
-status_dirty = "#f9e2af"
-status_error = "#f38ba8"
-dot_workspace = "#89dceb"
-dot_git       = "#fab387"
-dot_env       = "#cba6f7"
-dot_task      = "#a6e3a1"
-dot_mood      = "#f5c2e7"
-title_mew       = "#cba6f7"
-title_sys       = "#a6e3a1"
-title_context   = "#fab387"
-title_telem     = "#f5c2e7"
-title_cmd       = "#94e2d5"
-dots = ["#f38ba8", "#fab387", "#f9e2af", "#a6e3a1", "#94e2d5", "#89b4fa", "#cba6f7", "#f5c2e7"]
-'@ | Out-File -FilePath $ThemeFile -Encoding utf8
+    # the annotated template is the single source of truth — never a stale copy
+    $Template = & "$InstallDir\mew.exe" theme --raw
+    [System.IO.File]::WriteAllText($ThemeFile, ($Template -join "`n") + "`n", (New-Object System.Text.UTF8Encoding($false)))
 }
 
 Write-Host "mew: installation complete. run 'mew hook powershell' to integrate with your prompt."
