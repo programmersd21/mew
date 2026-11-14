@@ -22,7 +22,7 @@ fn border_line(
     total_width: usize,
     left: char,
     right: char,
-    label_text: Option<(&str, &str)>,
+    label_text: Option<&str>,
 ) -> String {
     match label_text {
         None => format!(
@@ -33,16 +33,18 @@ fn border_line(
             right,
             p.reset
         ),
-        Some((text, color)) => {
+        // wordmark painted with the signature sky→mauve gradient; plain mode
+        // degrades to bare text via gradient_text's passthrough.
+        Some(text) => {
             let dashes = total_width.saturating_sub(5 + text.chars().count());
+            let word = gradient_text(text, &p.dot_workspace_hex, &p.title_mew_hex, p);
             format!(
-                "{}{}─{} {}{}{}{} {}{}{}{}\n",
+                "{}{}─{} {}{}{} {}{}{}{}\n",
                 p.border,
                 left,
                 p.reset,
                 p.bold,
-                color,
-                text,
+                word,
                 p.reset,
                 p.border,
                 "─".repeat(dashes),
@@ -421,13 +423,7 @@ pub fn render_compact(git: &GitState, palette: &Palette, top_lang: Option<&str>)
     let row6_r = p.color_palette_dots();
 
     let mut out = String::new();
-    out.push_str(&border_line(
-        p,
-        total_width,
-        '╭',
-        '╮',
-        Some(("mew", &p.title_mew)),
-    ));
+    out.push_str(&border_line(p, total_width, '╭', '╮', Some("mew")));
     out.push_str(&empty_line);
     out.push('\n');
     out.push_str(&format_line(&format!("{}{}", m1, gutter), &row1_r));
