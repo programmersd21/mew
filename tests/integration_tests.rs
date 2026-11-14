@@ -146,6 +146,91 @@ fn test_legacy_theme_toml_still_parses() {
 }
 
 #[test]
+fn test_default_theme_toml_roundtrips_to_default_config() {
+    let src = mew::theme::default_theme_toml();
+    // never contains escape bytes: the piped path must stay clean toml
+    assert!(!src.contains('\x1b'));
+    assert!(src.contains("[colors]"));
+    // every public key ships in the template
+    for key in [
+        "border",
+        "primary",
+        "muted",
+        "mascot",
+        "task_active",
+        "gauge_fill",
+        "gauge_empty",
+        "status_clean",
+        "status_dirty",
+        "status_error",
+        "dot_workspace",
+        "dot_git",
+        "dot_env",
+        "dot_task",
+        "dot_mood",
+        "title_mew",
+        "dots",
+    ] {
+        assert!(src.contains(key), "default theme.toml missing key {}", key);
+    }
+    // the generated file parses and equals the built-in palette exactly
+    let parsed: mew::theme::ThemeConfig = toml::from_str(&src).unwrap();
+    assert_eq!(parsed, mew::theme::ThemeConfig::default());
+}
+
+#[test]
+fn test_highlight_toml_plain_passthrough_and_ansi_strip_roundtrip() {
+    let cfg = mew::theme::ThemeConfig::default();
+    let src = mew::theme::default_theme_toml();
+    // plain mode: byte-identical passthrough
+    let plain = mew::theme::Palette::from_config(&cfg, mew::theme::ColorMode::Plain);
+    assert_eq!(mew::theme::highlight_toml(&src, &plain), src);
+    // truecolor: escapes added, but stripping them recovers the source exactly
+    let palette = mew::theme::Palette::from_config(&cfg, mew::theme::ColorMode::Truecolor);
+    let highlighted = mew::theme::highlight_toml(&src, &palette);
+    assert!(highlighted.contains("\x1b["));
+    let mut stripped = String::new();
+    let mut in_escape = false;
+    for c in highlighted.chars() {
+        if c == '\x1b' {
+            in_escape = true;
+            continue;
+        }
+        if in_escape {
+            if c == 'm' {
+                in_escape = false;
+            }
+            continue;
+        }
+        stripped.push(c);
+    }
+    assert_eq!(stripped, src);
+}
+
+#[test]
+fn test_theme_subcommand_pipes_raw_toml_and_accepts_raw_flag() {
+    let bin = env!("CARGO_BIN_EXE_mew");
+    for args in [vec!["theme"], vec!["theme", "--raw"]] {
+        let out = std::process::Command::new(bin)
+            .args(&args)
+            .output()
+            .unwrap();
+        assert!(out.status.success(), "mew theme exited non-zero");
+        // not a tty under process spawn: stdout must be pure toml, stderr silent
+        assert!(!out.stdout.is_empty());
+        assert!(
+            out.stderr.is_empty(),
+            "piped mew theme leaked to stderr: {:?}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        let src = String::from_utf8(out.stdout).unwrap();
+        assert!(!src.contains('\x1b'));
+        let parsed: mew::theme::ThemeConfig = toml::from_str(&src).unwrap();
+        assert_eq!(parsed, mew::theme::ThemeConfig::default());
+    }
+}
+
+#[test]
 fn test_gradient_text_plain_mode_passthrough() {
     let palette = mew::theme::Palette::from_config(
         &mew::theme::ThemeConfig::default(),

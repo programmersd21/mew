@@ -64,7 +64,7 @@ impl Default for ThemeColors {
     }
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ThemeConfig {
     pub colors: ThemeColors,
 }
@@ -128,6 +128,61 @@ pub fn theme_path() -> Option<PathBuf> {
     theme_dir().map(|p| p.join("theme.toml"))
 }
 
+// header comment prepended to the generated file. the `[colors]` body is
+// serialized from ThemeColors::default(), so the template and the binary
+// can never drift apart; only this reference header and the layout are
+// handwritten. tests pin the roundtrip.
+const DEFAULT_THEME_HEADER: &str = "\
+# ────────────────────────────────────────────────┐
+# mew · default theme
+# ────────────────────────────────────────────────┘
+#
+# regenerate any time with:
+#   mew theme > ~/.config/mew/theme.toml
+# (create the directory first if it does not exist yet)
+#
+# every value below is the built-in default: copying this file into
+# place and changing nothing alters nothing. edit the keys you want
+# to override and delete the rest — missing keys fall back to the
+# defaults. all colors are #rrggbb hex. mew reads this file on every
+# run; there is nothing to reload.
+#
+# if the file cannot be parsed, mew prints a warning and falls back
+# to the defaults instead of failing.
+#
+# key reference
+#   border         · frame lines and card chrome
+#   primary        · row values and body text
+#   muted          · labels and dim chrome
+#   mascot         · cat linework outside mood accents
+#   task_active    · dates and active text accents
+#   gauge_fill     · filled meter cells and gauge accents
+#   gauge_empty    · meter track cells
+#   status_clean   · clean / staged state
+#   status_dirty   · modified / untracked state
+#   status_error   · conflicts
+#   dot_workspace  · workspace row icon
+#   dot_git        · git row icon and branch pill
+#   dot_env        · env row icon and env text
+#   dot_task       · time row icon
+#   dot_mood       · mood and day icons
+#   title_mew      · top frame wordmark
+#   dots           · signature palette dots (8 hex strings)
+#
+# mew strips all color when stdout is not a tty or NO_COLOR is set;
+# the file is still read but nothing is painted.
+
+";
+
+// the default theme as a ready-to-publish theme.toml. serialized from the
+// same Default impl the renderer uses, so the subcommand output and the
+// built-in palette can never drift. roundtrip-pinned by tests.
+pub fn default_theme_toml() -> String {
+    let body = toml::to_string_pretty(&ThemeConfig::default())
+        .expect("default theme config always serializes");
+    format!("{}{}", DEFAULT_THEME_HEADER, body)
+}
+
 pub fn load_theme() -> ThemeConfig {
     if let Some(path) = theme_path()
         && path.exists()
@@ -146,6 +201,78 @@ pub fn load_theme() -> ThemeConfig {
     }
 
     ThemeConfig::default()
+}
+
+// push `text` wrapped in a color; caller re-opens the next segment.
+fn push_segment(out: &mut String, text: &str, color: &str, p: &Palette) {
+    out.push_str(color);
+    out.push_str(text);
+    out.push_str(&p.reset);
+}
+
+// color the quoted strings in a toml value green, everything else primary.
+// single pass over chars; an unbalanced quote degrades to "rest of line is a
+// string", which is still valid highlighting.
+fn highlight_toml_value(out: &mut String, text: &str, p: &Palette) {
+    let mut buf = String::new();
+    let mut in_string = false;
+    for c in text.chars() {
+        if c == '"' {
+            if in_string {
+                buf.push('"');
+                push_segment(out, &buf, &p.status_clean, p);
+                buf.clear();
+                in_string = false;
+            } else {
+                if !buf.is_empty() {
+                    push_segment(out, &buf, &p.primary, p);
+                    buf.clear();
+                }
+                buf.push('"');
+                in_string = true;
+            }
+        } else {
+            buf.push(c);
+        }
+    }
+    if !buf.is_empty() {
+        let color = if in_string {
+            &p.status_clean
+        } else {
+            &p.primary
+        };
+        push_segment(out, &buf, color, p);
+    }
+}
+
+// syntax highlight for the template, themed from the active palette:
+//   comments (#…)            → muted
+//   table headers ([colors]) → bold title_mew
+//   key = value              → key dot_workspace, punctuation muted, strings status_clean
+// plain mode returns the source untouched so redirected output stays byte-clean.
+pub fn highlight_toml(src: &str, p: &Palette) -> String {
+    if p.is_plain {
+        return src.to_string();
+    }
+    let mut out = String::with_capacity(src.len() + 1024);
+    for line in src.lines() {
+        let trimmed = line.trim_start();
+        if trimmed.starts_with('#') {
+            push_segment(&mut out, line, &p.muted, p);
+        } else if trimmed.starts_with('[') {
+            out.push_str(&p.bold);
+            push_segment(&mut out, line, &p.title_mew, p);
+        } else if let Some(eq) = line.find('=') {
+            let (key, rest) = line.split_at(eq);
+            push_segment(&mut out, key, &p.dot_workspace, p);
+            push_segment(&mut out, "=", &p.muted, p);
+            highlight_toml_value(&mut out, &rest[1..], p);
+        } else {
+            highlight_toml_value(&mut out, line, p);
+        }
+        out.push('\n');
+    }
+    out
 }
 
 // ansi-escape palette for static rendering
