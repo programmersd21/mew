@@ -4,7 +4,7 @@
 
 <img src="assets/demo.png" alt="mew demo" width="700">
 
-**A fast terminal card for your project, Git state, and machine.**
+**a fast terminal card for your project and its git state.**
 
 [![build](https://img.shields.io/github/actions/workflow/status/programmersd21/mew/ci.yml?style=flat-square\&label=build\&labelColor=313244\&color=a6e3a1)](https://github.com/programmersd21/mew/actions)
 [![release](https://img.shields.io/github/v/release/programmersd21/mew?style=flat-square\&label=release\&labelColor=313244\&color=cba6f7)](https://github.com/programmersd21/mew/releases)
@@ -15,47 +15,60 @@
 
 </div>
 
-## What it does
+## what is this
 
-Run `mew` in a project and get the useful stuff at a glance:
+mew prints a small card when you land in a project: where you are, what
+git thinks of that, and which toolchain owns the room. it replaces the
+`git status` → squint → tab → `git diff` dance with one quiet glance.
 
-- Git branch, dirty/staged/conflict/ahead state
-- Project language (rust, python, go, c/c++, js/ts, c#, gdscript/godot, dart, …) and live toolchain version
-- Lines of code and detected coverage
-- CPU, frequency, memory, disk, and uptime
-- Clock, date, timezone, and day progress
+no daemon, no polling, no background anything. it reads git state when
+you ask and exits.
 
-Inside Git worktrees, shell hooks can show it automatically.
+```text
+╭─ mew ────────────────────────────────────────────────────────────────╮
+│                                                                      │
+│    /\_/\      │    workspace  ~/projects/github/mew                 │
+│   ( o.o )     │    git        main •  18 modified                  │
+│    > ^ <      │    env        cachyos • rustc 1.99.1                │
+│   ● watching  │    time       12:40 • sat nov 14                    │
+│               │    day        ████████ 52%                          │
+│                                                                      │
+│               │  ● ● ● ● ● ● ● ●                                     │
+│                                                                      │
+╰──────────────────────────────────────────────────────────────────────╯
+```
 
-Outside Git, mew becomes a small system readout.
+- git branch, dirty/staged/conflict state, ahead/behind your upstream
+- project language and live toolchain version (probed, never guessed)
+- clock, date, timezone, and how much of the day is gone
+- outside a repo, the card doubles as a small uptime + env readout
+- themable down to the dot. `NO_COLOR` strips it all
 
-<img src="assets/no_repo.png" alt="mew outside a git repository" width="600">
+## quick start
 
-It runs on demand and reads Git state only when invoked, so it stays fast with nothing running in the background.
-
-## mew vs fastfetch
-
-[Fastfetch](https://github.com/fastfetch-cli/fastfetch) is for **your machine**. mew is for **what you're working on**.
-
-|                    | mew | fastfetch |
-| ------------------ | --- | --------- |
-| Git status         | ✓   | —         |
-| Branch / conflicts | ✓   | —         |
-| Toolchain          | ✓   | —         |
-| Lines / coverage   | ✓   | —         |
-| System info        | ✓   | ✓         |
-| Shell Git hooks    | ✓   | —         |
-| System-focused     | —   | ✓         |
-| Custom modules     | —   | ✓         |
-
-Use fastfetch for a system snapshot. Use mew when you want the project in front of you.
-
-## Install
-
-linux and macos:
-
-```bash
+```sh
 curl -sSf https://raw.githubusercontent.com/programmersd21/mew/main/scripts/install.sh | bash
+mew
+```
+
+that's it. the installer provisions a starter `theme.toml` for you;
+macos and windows work the same way, see below.
+
+<details>
+<summary>other ways to install</summary>
+
+```sh
+# cargo
+cargo install mew-cli
+
+# arch (aur)
+paru -S mew-bin
+
+# nix / home-manager: add github:programmersd21/mew as a flake input, then
+programs.mew.enable = true;
+
+# from source (rust 1.95+)
+git clone https://github.com/programmersd21/mew && cd mew && cargo install --path .
 ```
 
 windows (powershell):
@@ -64,88 +77,85 @@ windows (powershell):
 irm https://raw.githubusercontent.com/programmersd21/mew/main/scripts/install.ps1 | iex
 ```
 
-or download the matching asset from [releases](https://github.com/programmersd21/mew/releases) (`x86_64-unknown-linux-gnu`, `aarch64-apple-darwin`, `x86_64-pc-windows-msvc`).
+</details>
 
-or:
-
-```sh
-cargo install mew-cli
-```
-
-### Arch Linux (AUR)
-
-```sh
-paru -S mew-bin
-# or
-yay -S mew-bin
-```
-
-### Nix and Home Manager
-
-Add mew as a flake input:
-
-```nix
-{
-  inputs.mew.url = "github:programmersd21/mew";
-
-  outputs = { nixpkgs, mew, ... }: {
-    homeConfigurations."username" =
-      home-manager.lib.homeManagerConfiguration {
-        modules = [ mew.homeManagerModules.default ];
-      };
-  };
-}
-```
-
-Then enable the module:
-
-```nix
-programs.mew.enable = true;
-```
-
-### Build from source
-
-Requires Rust 1.85+.
-
-```sh
-cargo install --git https://github.com/programmersd21/mew mew-cli
-```
-
-## Usage
+## usage
 
 ```sh
 mew
-mew --full
 ```
 
-### Shell hooks
+the shell hook re-prints the card on every `cd`, git worktrees only:
 
 ```sh
-eval "$(mew hook bash)"
-eval "$(mew hook zsh)"
-mew hook fish | source
-mew hook nu
+eval "$(mew hook bash)"   # bash
+eval "$(mew hook zsh)"    # zsh
+mew hook fish | source    # fish
+mew hook nu               # nushell
 ```
 
 ```powershell
 mew hook powershell | Out-String | Invoke-Expression
 ```
 
-hooks only activate inside git worktrees.
+help, version and error output wear the same palette as the card. piped output and `NO_COLOR` sessions stay plain, exit codes unchanged.
 
-## Configuration
+## theming
 
-Optional theme file at `~/.config/mew/theme.toml`.
-
-```text
-~/.config/mew/theme.toml        (linux and macos)
-%APPDATA%\mew\theme.toml        (windows)
+```sh
+mkdir -p ~/.config/mew
+mew theme > ~/.config/mew/theme.toml
 ```
 
-## Requirements
+`mew theme` prints the complete annotated template, generated from the
+same defaults the binary ships with, so it cannot drift from what the
+code actually does. on a tty it prints a syntax highlighted preview
+instead. edit anything, delete everything you don't care about.
+missing keys fall back to the built-in catppuccin mocha palette.
 
-* Linux, macOS, or Windows
-* Nerd Font recommended
-* Rust 1.95+ if building from source
+config path: `~/.config/mew/theme.toml` (linux/macos), `%APPDATA%\mew\theme.toml` (windows).
 
-[MIT](LICENSE)
+```toml
+[colors]
+primary   = "#cdd6f4"   # row values
+gauge_fill = "#89b4fa"  # meter fill
+dots      = ["#f38ba8", "#fab387", "#f9e2af", "#a6e3a1", "#94e2d5", "#89b4fa", "#cba6f7", "#f5c2e7"]
+```
+
+can't parse your theme.toml? you get one warning on stderr and the
+built-in defaults, never a crash.
+
+## mew vs fastfetch
+
+fastfetch makes your machine look good. mew makes your afternoon look
+honest.
+
+|                    | mew | fastfetch |
+| ------------------ | --- | --------- |
+| git status         | ✓   | —         |
+| branch / conflicts | ✓   | —         |
+| toolchain          | ✓   | —         |
+| uptime             | ✓   | ✓         |
+| system info        | os + uptime only | ✓         |
+| shell git hooks    | ✓   | —         |
+| system-focused     | —   | ✓         |
+| custom modules     | —   | ✓         |
+
+## hacking
+
+clone the repo, then:
+
+```sh
+cargo fmt --check && cargo clippy --all-targets --locked -- -D warnings && cargo test --locked
+```
+
+ci enforces the same three. see [contributing.md](CONTRIBUTING.md) for
+the house rules.
+
+## requirements
+
+- linux, macos, or windows
+- a nerd font if you want the icons (the card survives without them)
+- rust 1.95+ if building from source
+
+[mit](LICENSE)

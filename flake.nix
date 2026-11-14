@@ -1,5 +1,5 @@
 {
-  description = "a fast terminal card for your project, git state, and machine";
+  description = "a fast terminal card for your project and its git state";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
