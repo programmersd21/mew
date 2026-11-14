@@ -20,17 +20,13 @@ pub struct ThemeColors {
     pub status_clean: String,
     pub status_dirty: String,
     pub status_error: String,
-    // per-item accents: row dots, card titles, clock gradient stops
+    // per-item accents: row icons and the wordmark gradient stops
     pub dot_workspace: String,
     pub dot_git: String,
     pub dot_env: String,
     pub dot_task: String,
     pub dot_mood: String,
     pub title_mew: String,
-    pub title_sys: String,
-    pub title_context: String,
-    pub title_telem: String,
-    pub title_cmd: String,
     // signature fastfetch palette strip
     pub dots: Vec<String>,
 }
@@ -54,10 +50,6 @@ impl Default for ThemeColors {
             dot_task: "#a6e3a1".to_string(),
             dot_mood: "#f5c2e7".to_string(),
             title_mew: "#cba6f7".to_string(),
-            title_sys: "#a6e3a1".to_string(),
-            title_context: "#fab387".to_string(),
-            title_telem: "#f5c2e7".to_string(),
-            title_cmd: "#94e2d5".to_string(),
             dots: vec![
                 "#f38ba8".to_string(), // red
                 "#fab387".to_string(), // peach
@@ -174,12 +166,8 @@ pub struct Palette {
     pub dot_env: String,
     pub dot_task: String,
     pub dot_mood: String,
-    // colorful card titles for raycast/apple-grade polish
+    // signature accent for the wordmark gradient and chrome highlights
     pub title_mew: String,
-    pub title_sys: String,
-    pub title_context: String,
-    pub title_telem: String,
-    pub title_cmd: String,
     // raw hex stops for the clock gradient (ansi escapes can't unmix)
     pub dot_workspace_hex: String,
     pub title_mew_hex: String,
@@ -212,10 +200,6 @@ impl Palette {
                 dot_task: String::new(),
                 dot_mood: String::new(),
                 title_mew: String::new(),
-                title_sys: String::new(),
-                title_context: String::new(),
-                title_telem: String::new(),
-                title_cmd: String::new(),
                 dot_workspace_hex: String::new(),
                 title_mew_hex: String::new(),
                 dots: Vec::new(),
@@ -245,10 +229,6 @@ impl Palette {
             dot_mood: hex_to_ansi(&c.dot_mood),
             // colorful distinct card headers
             title_mew: hex_to_ansi(&c.title_mew),
-            title_sys: hex_to_ansi(&c.title_sys),
-            title_context: hex_to_ansi(&c.title_context),
-            title_telem: hex_to_ansi(&c.title_telem),
-            title_cmd: hex_to_ansi(&c.title_cmd),
             dot_workspace_hex: c.dot_workspace.clone(),
             title_mew_hex: c.title_mew.clone(),
             dots: c.dots.clone(),

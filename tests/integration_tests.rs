@@ -2,8 +2,8 @@ use std::path::PathBuf;
 
 use mew::git::{GitAheadBehind, GitState, MascotState, compute_mascot_state};
 use mew::render::{
-    format_branch_info, format_git_pill, gradient_text, render_compact, render_full,
-    render_gauge_porcelain, time_widget_strings, truncate_visible, visible_width,
+    format_git_pill, gradient_text, render_compact, render_gauge_porcelain, time_widget_strings,
+    truncate_visible, visible_width,
 };
 
 #[test]
@@ -51,53 +51,6 @@ fn test_mascot_priority_resolution() {
     // 7. No repo
     git.is_repo = false;
     assert_eq!(compute_mascot_state(&git, false), MascotState::NoRepo);
-}
-
-#[test]
-fn test_branch_info_formatting() {
-    let mut git = GitState::default();
-
-    // not a repo
-    assert_eq!(format_branch_info(&git), "not a git repository");
-
-    git.is_repo = true;
-    git.branch_name = "feat/lexer".to_string();
-
-    // no upstream
-    assert_eq!(format_branch_info(&git), "no upstream configured");
-
-    // detached head
-    git.is_detached = true;
-    git.branch_name = "detached@a1b2c3d".to_string();
-    assert_eq!(
-        format_branch_info(&git),
-        "detached at head (detached@a1b2c3d)"
-    );
-
-    // clean upstream up to date
-    git.is_detached = false;
-    git.branch_name = "main".to_string();
-    git.ahead_behind = GitAheadBehind {
-        ahead: 0,
-        behind: 0,
-        has_upstream: true,
-        upstream_name: Some("origin/main".to_string()),
-    };
-    assert_eq!(format_branch_info(&git), "up to date with origin/main");
-
-    // ahead only
-    git.ahead_behind.ahead = 3;
-    assert_eq!(format_branch_info(&git), "3 ahead of origin/main");
-
-    // behind only
-    git.ahead_behind.ahead = 0;
-    git.ahead_behind.behind = 2;
-    assert_eq!(format_branch_info(&git), "2 behind origin/main");
-
-    // ahead and behind
-    git.ahead_behind.ahead = 4;
-    git.ahead_behind.behind = 1;
-    assert_eq!(format_branch_info(&git), "4 ahead, 1 behind origin/main");
 }
 
 #[test]
@@ -193,14 +146,6 @@ fn test_legacy_theme_toml_still_parses() {
 }
 
 #[test]
-fn test_shell_info_is_lowercase_and_nonempty() {
-    let (shell, term) = mew::system::read_shell_info();
-    assert_eq!(shell, shell.to_lowercase());
-    assert_eq!(term, term.to_lowercase());
-    assert!(!shell.is_empty() && !term.is_empty());
-}
-
-#[test]
 fn test_gradient_text_plain_mode_passthrough() {
     let palette = mew::theme::Palette::from_config(
         &mew::theme::ThemeConfig::default(),
@@ -257,15 +202,13 @@ fn reaction_git_state() -> GitState {
 }
 
 // every mascot state must paint its own face + chip word and hold the
-// frame: 72 cols in tiny mode, 79 in full mode. no shared fallbacks.
+// frame: 72 cols in every line. no shared fallbacks.
 #[test]
 fn test_all_mascot_reactions_render() {
     let palette = mew::theme::Palette::from_config(
         &mew::theme::ThemeConfig::default(),
         mew::theme::ColorMode::Truecolor,
     );
-    let sys = mew::system::SystemTelemetry::default();
-    let telem = mew::telemetry::ProjectTelemetry::default();
 
     let mut conflict = reaction_git_state();
     conflict.conflict_count = 1;
@@ -297,36 +240,14 @@ fn test_all_mascot_reactions_render() {
     ];
 
     for (git, word, face) in &cases {
-        // tiny mode: word + face present, every line exactly 72
-        let tiny = render_compact(git, &palette, None);
-        assert!(
-            tiny.contains(word),
-            "tiny mode missing chip word '{}'",
-            word
-        );
-        assert!(tiny.contains(face), "tiny mode missing face '{}'", face);
-        for line in tiny.lines() {
+        let out = render_compact(git, &palette, None);
+        assert!(out.contains(word), "missing chip word '{}'", word);
+        assert!(out.contains(face), "missing face '{}'", face);
+        for line in out.lines() {
             assert_eq!(
                 mew::render::visible_width(line),
                 72,
-                "tiny mode line off width in '{}' state",
-                word
-            );
-        }
-
-        // full mode drives the same face from the same state
-        let full = render_full(true, git, &sys, &telem, &palette);
-        assert!(
-            full.contains(word),
-            "full mode missing chip word '{}'",
-            word
-        );
-        assert!(full.contains(face), "full mode missing face '{}'", face);
-        for line in full.lines() {
-            assert_eq!(
-                mew::render::visible_width(line),
-                79,
-                "full mode line off width in '{}' state",
+                "line off width in '{}' state",
                 word
             );
         }
